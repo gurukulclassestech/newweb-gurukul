@@ -1,0 +1,6 @@
+{
+  "name": "Giri Sir's Gurukul Classes",
+  "description": "Structured coaching for school, board and competitive examinations at Giri Sir's Gurukul Classes, Chhatrapati Sambhajinagar, Maharashtra.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,519 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Reusable Security Primitives ---
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isBootstrappedAdmin() {
+      return isVerifiedUser() && request.auth.token.email == 'gurukulclassestech@gmail.com';
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin() || (
+        isVerifiedUser() && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function optStr(data, key, maxLen) {
+      return !(key in data) || (data[key] is string && data[key].size() <= maxLen);
+    }
+
+    function reqStr(data, key, minLen, maxLen) {
+      return (key in data) && data[key] is string && data[key].size() >= minLen && data[key].size() <= maxLen;
+    }
+
+    function optBool(data, key) {
+      return !(key in data) || data[key] is bool;
+    }
+
+    function optNum(data, key) {
+      return !(key in data) || (data[key] is number);
+    }
+
+    // --- Entity Validation Blueprints ---
+
+    function isValidSiteSettings(data) {
+      return data.keys().hasAll(['institute_name', 'phone', 'email', 'address']) &&
+        data.keys().hasOnly([
+          'institute_name', 'tagline', 'about_heading', 'about_intro',
+          'logo_url', 'logo_width', 'logo_height',
+          'phone', 'email', 'whatsapp', 'address', 'map_embed_url', 'map_link', 'office_hours',
+          'announcement_enabled', 'announcement_text', 'announcement_bg_color', 'announcement_text_color',
+          'header_bg_color', 'header_text_color',
+          'footer_about', 'footer_copyright',
+          'facebook_url', 'instagram_url', 'youtube_url', 'twitter_url',
+          'seo_title', 'seo_description', 'seo_keywords', 'og_image_url',
+          'popup_enabled', 'popup_title', 'popup_body', 'popup_cta_label', 'popup_cta_link',
+          'payments_enabled', 'payment_fee_label', 'upi_id', 'bank_details', 'payment_instructions',
+          'privacy_content', 'terms_content', 'updated_at'
+        ]) &&
+        reqStr(data, 'institute_name', 2, 120) &&
+        reqStr(data, 'phone', 5, 30) &&
+        reqStr(data, 'email', 5, 120) &&
+        reqStr(data, 'address', 3, 300) &&
+        optStr(data, 'tagline', 400) &&
+        optStr(data, 'about_heading', 160) &&
+        optStr(data, 'about_intro', 500) &&
+        optStr(data, 'logo_url', 1000) &&
+        optStr(data, 'logo_width', 10) &&
+        optStr(data, 'logo_height', 10) &&
+        optStr(data, 'whatsapp', 30) &&
+        optStr(data, 'map_embed_url', 1000) &&
+        optStr(data, 'map_link', 1000) &&
+        optStr(data, 'office_hours', 160) &&
+        optBool(data, 'announcement_enabled') &&
+        optStr(data, 'announcement_text', 300) &&
+        optStr(data, 'announcement_bg_color', 20) &&
+        optStr(data, 'announcement_text_color', 20) &&
+        optStr(data, 'header_bg_color', 20) &&
+        optStr(data, 'header_text_color', 20) &&
+        optStr(data, 'footer_about', 400) &&
+        optStr(data, 'footer_copyright', 200) &&
+        optStr(data, 'facebook_url', 500) &&
+        optStr(data, 'instagram_url', 500) &&
+        optStr(data, 'youtube_url', 500) &&
+        optStr(data, 'twitter_url', 500) &&
+        optStr(data, 'seo_title', 160) &&
+        optStr(data, 'seo_description', 320) &&
+        optStr(data, 'seo_keywords', 300) &&
+        optStr(data, 'og_image_url', 1000) &&
+        optBool(data, 'popup_enabled') &&
+        optStr(data, 'popup_title', 160) &&
+        optStr(data, 'popup_body', 500) &&
+        optStr(data, 'popup_cta_label', 60) &&
+        optStr(data, 'popup_cta_link', 200) &&
+        optBool(data, 'payments_enabled') &&
+        optStr(data, 'payment_fee_label', 120) &&
+        optStr(data, 'upi_id', 120) &&
+        optStr(data, 'bank_details', 600) &&
+        optStr(data, 'payment_instructions', 600) &&
+        optStr(data, 'privacy_content', 5000) &&
+        optStr(data, 'terms_content', 5000) &&
+        (!('updated_at' in data) || data.updated_at is timestamp);
+    }
+
+    function isValidNavItem(data) {
+      return data.keys().hasAll(['label', 'path', 'location', 'display_order']) &&
+        data.keys().hasOnly(['label', 'path', 'location', 'display_order', 'open_in_new_tab']) &&
+        reqStr(data, 'label', 1, 60) &&
+        reqStr(data, 'path', 1, 200) &&
+        data.location in ['header', 'footer'] &&
+        data.display_order is number &&
+        optBool(data, 'open_in_new_tab');
+    }
+
+    function isValidHomepageSection(data) {
+      return data.keys().hasAll(['key', 'display_order', 'is_visible']) &&
+        data.keys().hasOnly(['key', 'title', 'subtitle', 'body', 'image_url', 'button_label', 'button_link', 'display_order', 'is_visible', 'items']) &&
+        reqStr(data, 'key', 1, 40) &&
+        data.display_order is number &&
+        data.is_visible is bool &&
+        optStr(data, 'title', 200) &&
+        optStr(data, 'subtitle', 400) &&
+        optStr(data, 'body', 4000) &&
+        optStr(data, 'image_url', 1000) &&
+        optStr(data, 'button_label', 80) &&
+        optStr(data, 'button_link', 200) &&
+        (!('items' in data) || (data.items is list && data.items.size() <= 20 && (data.items.size() == 0 || data.items[0] is map)));
+    }
+
+    function isValidBanner(data) {
+      return data.keys().hasAll(['title', 'display_order', 'is_active']) &&
+        data.keys().hasOnly(['title', 'subtitle', 'description', 'image_url', 'primary_label', 'primary_url', 'secondary_label', 'secondary_url', 'deadline', 'display_order', 'is_active']) &&
+        reqStr(data, 'title', 2, 200) &&
+        data.display_order is number &&
+        data.is_active is bool &&
+        optStr(data, 'subtitle', 400) &&
+        optStr(data, 'description', 600) &&
+        optStr(data, 'image_url', 1000) &&
+        optStr(data, 'primary_label', 60) &&
+        optStr(data, 'primary_url', 200) &&
+        optStr(data, 'secondary_label', 60) &&
+        optStr(data, 'secondary_url', 200) &&
+        optStr(data, 'deadline', 40);
+    }
+
+    function isValidCourse(data) {
+      return data.keys().hasAll(['name', 'category', 'class_level', 'is_published', 'display_order']) &&
+        data.keys().hasOnly(['name', 'category', 'class_level', 'duration', 'batch_info', 'subjects', 'fee', 'description', 'highlights', 'image_url', 'display_order', 'is_published', 'is_featured']) &&
+        reqStr(data, 'name', 2, 160) &&
+        reqStr(data, 'category', 1, 80) &&
+        reqStr(data, 'class_level', 1, 80) &&
+        data.is_published is bool &&
+        data.display_order is number &&
+        optBool(data, 'is_featured') &&
+        optStr(data, 'duration', 80) &&
+        optStr(data, 'batch_info', 160) &&
+        optStr(data, 'subjects', 300) &&
+        optStr(data, 'fee', 80) &&
+        optStr(data, 'description', 4000) &&
+        optStr(data, 'highlights', 1000) &&
+        optStr(data, 'image_url', 1000);
+    }
+
+    function isValidExam(data) {
+      return data.keys().hasAll(['title', 'status', 'is_published', 'display_order']) &&
+        data.keys().hasOnly(['title', 'course_category', 'class_level', 'exam_date', 'exam_time', 'syllabus', 'instructions', 'status', 'registration_link', 'display_order', 'is_published']) &&
+        reqStr(data, 'title', 2, 180) &&
+        data.status in ['upcoming', 'open', 'completed'] &&
+        data.is_published is bool &&
+        data.display_order is number &&
+        optStr(data, 'course_category', 80) &&
+        optStr(data, 'class_level', 80) &&
+        optStr(data, 'exam_date', 40) &&
+        optStr(data, 'exam_time', 60) &&
+        optStr(data, 'syllabus', 1000) &&
+        optStr(data, 'instructions', 2000) &&
+        optStr(data, 'registration_link', 400);
+    }
+
+    function isValidLecture(data) {
+      return data.keys().hasAll(['title', 'subject', 'class_level', 'video_url', 'is_published', 'display_order']) &&
+        data.keys().hasOnly(['title', 'subject', 'class_level', 'teacher_name', 'duration', 'video_url', 'thumbnail_url', 'description', 'display_order', 'is_published']) &&
+        reqStr(data, 'title', 2, 180) &&
+        reqStr(data, 'subject', 1, 80) &&
+        reqStr(data, 'class_level', 1, 80) &&
+        reqStr(data, 'video_url', 5, 500) &&
+        data.is_published is bool &&
+        data.display_order is number &&
+        optStr(data, 'teacher_name', 100) &&
+        optStr(data, 'duration', 40) &&
+        optStr(data, 'thumbnail_url', 1000) &&
+        optStr(data, 'description', 1500);
+    }
+
+    function isValidResult(data) {
+      return data.keys().hasAll(['student_name', 'achievement_title', 'score', 'academic_year', 'is_published', 'display_order']) &&
+        data.keys().hasOnly(['student_name', 'achievement_title', 'score', 'class_level', 'academic_year', 'photo_url', 'document_url', 'display_order', 'is_featured', 'is_published']) &&
+        reqStr(data, 'student_name', 2, 120) &&
+        reqStr(data, 'achievement_title', 2, 180) &&
+        reqStr(data, 'score', 1, 60) &&
+        reqStr(data, 'academic_year', 2, 30) &&
+        data.is_published is bool &&
+        data.display_order is number &&
+        optBool(data, 'is_featured') &&
+        optStr(data, 'class_level', 80) &&
+        optStr(data, 'photo_url', 1000) &&
+        optStr(data, 'document_url', 1000);
+    }
+
+    function isValidFaculty(data) {
+      return data.keys().hasAll(['name', 'role', 'subjects', 'is_published', 'display_order']) &&
+        data.keys().hasOnly(['name', 'role', 'subjects', 'qualification', 'experience', 'bio', 'photo_url', 'display_order', 'is_published']) &&
+        reqStr(data, 'name', 2, 120) &&
+        reqStr(data, 'role', 2, 100) &&
+        reqStr(data, 'subjects', 2, 160) &&
+        data.is_published is bool &&
+        data.display_order is number &&
+        optStr(data, 'qualification', 160) &&
+        optStr(data, 'experience', 80) &&
+        optStr(data, 'bio', 1200) &&
+        optStr(data, 'photo_url', 1000);
+    }
+
+    function isValidTestimonial(data) {
+      return data.keys().hasAll(['display_name', 'quote', 'rating', 'is_published', 'display_order']) &&
+        data.keys().hasOnly(['display_name', 'role_or_class', 'quote', 'rating', 'photo_url', 'display_order', 'is_published']) &&
+        reqStr(data, 'display_name', 2, 120) &&
+        reqStr(data, 'quote', 5, 1200) &&
+        data.rating is number && data.rating >= 1 && data.rating <= 5 &&
+        data.is_published is bool &&
+        data.display_order is number &&
+        optStr(data, 'role_or_class', 120) &&
+        optStr(data, 'photo_url', 1000);
+    }
+
+    function isValidAlbum(data) {
+      return data.keys().hasAll(['title', 'is_published', 'display_order']) &&
+        data.keys().hasOnly(['title', 'description', 'display_order', 'is_published']) &&
+        reqStr(data, 'title', 2, 120) &&
+        data.is_published is bool &&
+        data.display_order is number &&
+        optStr(data, 'description', 400);
+    }
+
+    function isValidMedia(data) {
+      return data.keys().hasAll(['file_url', 'media_type', 'is_published', 'display_order']) &&
+        data.keys().hasOnly(['album_id', 'title', 'caption', 'file_url', 'media_type', 'display_order', 'is_published']) &&
+        reqStr(data, 'file_url', 1, 1000) &&
+        data.media_type in ['image', 'video'] &&
+        data.is_published is bool &&
+        data.display_order is number &&
+        optStr(data, 'album_id', 128) &&
+        optStr(data, 'title', 160) &&
+        optStr(data, 'caption', 300);
+    }
+
+    function isValidBlog(data) {
+      return data.keys().hasAll(['title', 'slug', 'content', 'is_published']) &&
+        data.keys().hasOnly(['title', 'slug', 'category', 'author', 'published_date', 'excerpt', 'content', 'featured_image_url', 'seo_title', 'seo_description', 'is_published']) &&
+        reqStr(data, 'title', 2, 200) &&
+        reqStr(data, 'slug', 2, 160) &&
+        data.slug.matches('^[a-z0-9-]+$') &&
+        reqStr(data, 'content', 1, 12000) &&
+        data.is_published is bool &&
+        optStr(data, 'category', 80) &&
+        optStr(data, 'author', 100) &&
+        optStr(data, 'published_date', 40) &&
+        optStr(data, 'excerpt', 400) &&
+        optStr(data, 'featured_image_url', 1000) &&
+        optStr(data, 'seo_title', 160) &&
+        optStr(data, 'seo_description', 320);
+    }
+
+    function isValidEnquiry(data) {
+      return data.keys().hasAll(['student_name', 'phone', 'status', 'created_at', 'updated_at']) &&
+        data.keys().hasOnly([
+          'student_name', 'parent_name', 'phone', 'email', 'class_level',
+          'course_name', 'preferred_batch', 'message', 'source', 'status',
+          'admin_notes', 'created_at', 'updated_at'
+        ]) &&
+        reqStr(data, 'student_name', 2, 120) &&
+        reqStr(data, 'phone', 10, 20) &&
+        data.phone.matches('^[+0-9\\s()-]{10,20}$') &&
+        data.status in ['new', 'contacted', 'enrolled', 'closed'] &&
+        data.created_at is timestamp &&
+        data.updated_at is timestamp &&
+        optStr(data, 'parent_name', 120) &&
+        optStr(data, 'email', 120) &&
+        optStr(data, 'class_level', 80) &&
+        optStr(data, 'course_name', 160) &&
+        optStr(data, 'preferred_batch', 80) &&
+        optStr(data, 'message', 2000) &&
+        optStr(data, 'source', 60) &&
+        optStr(data, 'admin_notes', 1000);
+    }
+
+    function isValidAdmission(data) {
+      return data.keys().hasAll(['student_name', 'parent_name', 'phone', 'class_level', 'status', 'reference_code', 'created_at', 'updated_at']) &&
+        data.keys().hasOnly([
+          'student_name', 'parent_name', 'phone', 'email', 'class_level',
+          'course_name', 'preferred_batch', 'school', 'address', 'message',
+          'reference_code', 'status', 'admin_notes', 'created_at', 'updated_at'
+        ]) &&
+        reqStr(data, 'student_name', 2, 120) &&
+        reqStr(data, 'parent_name', 2, 120) &&
+        reqStr(data, 'phone', 10, 20) &&
+        data.phone.matches('^[+0-9\\s()-]{10,20}$') &&
+        reqStr(data, 'class_level', 1, 80) &&
+        reqStr(data, 'reference_code', 4, 30) &&
+        data.status in ['pending', 'verified', 'confirmed', 'rejected'] &&
+        data.created_at is timestamp &&
+        data.updated_at is timestamp &&
+        optStr(data, 'email', 120) &&
+        optStr(data, 'course_name', 160) &&
+        optStr(data, 'preferred_batch', 80) &&
+        optStr(data, 'school', 160) &&
+        optStr(data, 'address', 300) &&
+        optStr(data, 'message', 2000) &&
+        optStr(data, 'admin_notes', 1000);
+    }
+
+    function isValidAdminUser(data) {
+      return data.keys().hasAll(['email', 'role']) &&
+        data.keys().hasOnly(['email', 'role', 'created_at']) &&
+        reqStr(data, 'email', 5, 120) &&
+        data.role == 'admin' &&
+        (!('created_at' in data) || data.created_at is timestamp);
+    }
+
+    function isValidAdminActivity(data) {
+      return data.keys().hasAll(['action', 'entity', 'summary', 'actor_email', 'created_at']) &&
+        data.keys().hasOnly(['action', 'entity', 'summary', 'actor_email', 'created_at']) &&
+        reqStr(data, 'action', 2, 40) &&
+        reqStr(data, 'entity', 2, 60) &&
+        reqStr(data, 'summary', 2, 300) &&
+        reqStr(data, 'actor_email', 5, 120) &&
+        data.created_at == request.time;
+    }
+
+    // --- Collection Rules ---
+
+    // Connection check probe
+    match /test/{docId} {
+      allow get: if isValidId(docId);
+    }
+
+    // Global Site Settings
+    match /site_settings/{settingId} {
+      allow get: if isValidId(settingId);
+      allow list: if isBootstrappedAdmin();
+      allow create, update: if isValidId(settingId) && isAdmin() && isValidSiteSettings(incoming());
+      allow delete: if isValidId(settingId) && isAdmin();
+    }
+
+    // Navigation Items
+    match /nav_items/{itemId} {
+      allow get: if isValidId(itemId);
+      allow list: if existing().location in ['header', 'footer'];
+      allow create, update: if isValidId(itemId) && isAdmin() && isValidNavItem(incoming());
+      allow delete: if isValidId(itemId) && isAdmin();
+    }
+
+    // Homepage Sections
+    match /homepage_sections/{sectionId} {
+      allow get: if isValidId(sectionId);
+      allow list: if existing().is_visible == true || isBootstrappedAdmin();
+      allow create, update: if isValidId(sectionId) && isAdmin() && isValidHomepageSection(incoming());
+      allow delete: if isValidId(sectionId) && isAdmin();
+    }
+
+    // Banners
+    match /banners/{bannerId} {
+      allow get: if isValidId(bannerId) && (existing().is_active == true || isAdmin());
+      allow list: if existing().is_active == true || isBootstrappedAdmin();
+      allow create, update: if isValidId(bannerId) && isAdmin() && isValidBanner(incoming());
+      allow delete: if isValidId(bannerId) && isAdmin();
+    }
+
+    // Courses
+    match /courses/{courseId} {
+      allow get: if isValidId(courseId) && (existing().is_published == true || isAdmin());
+      allow list: if existing().is_published == true || isBootstrappedAdmin();
+      allow create, update: if isValidId(courseId) && isAdmin() && isValidCourse(incoming());
+      allow delete: if isValidId(courseId) && isAdmin();
+    }
+
+    // Exams
+    match /exams/{examId} {
+      allow get: if isValidId(examId) && (existing().is_published == true || isAdmin());
+      allow list: if existing().is_published == true || isBootstrappedAdmin();
+      allow create, update: if isValidId(examId) && isAdmin() && isValidExam(incoming());
+      allow delete: if isValidId(examId) && isAdmin();
+    }
+
+    // Lectures
+    match /lectures/{lectureId} {
+      allow get: if isValidId(lectureId) && (existing().is_published == true || isAdmin());
+      allow list: if existing().is_published == true || isBootstrappedAdmin();
+      allow create, update: if isValidId(lectureId) && isAdmin() && isValidLecture(incoming());
+      allow delete: if isValidId(lectureId) && isAdmin();
+    }
+
+    // Results
+    match /results/{resultId} {
+      allow get: if isValidId(resultId) && (existing().is_published == true || isAdmin());
+      allow list: if existing().is_published == true || isBootstrappedAdmin();
+      allow create, update: if isValidId(resultId) && isAdmin() && isValidResult(incoming());
+      allow delete: if isValidId(resultId) && isAdmin();
+    }
+
+    // Faculty
+    match /faculty/{facultyId} {
+      allow get: if isValidId(facultyId) && (existing().is_published == true || isAdmin());
+      allow list: if existing().is_published == true || isBootstrappedAdmin();
+      allow create, update: if isValidId(facultyId) && isAdmin() && isValidFaculty(incoming());
+      allow delete: if isValidId(facultyId) && isAdmin();
+    }
+
+    // Testimonials
+    match /testimonials/{testimonialId} {
+      allow get: if isValidId(testimonialId) && (existing().is_published == true || isAdmin());
+      allow list: if existing().is_published == true || isBootstrappedAdmin();
+      allow create, update: if isValidId(testimonialId) && isAdmin() && isValidTestimonial(incoming());
+      allow delete: if isValidId(testimonialId) && isAdmin();
+    }
+
+    // Gallery Albums
+    match /gallery_albums/{albumId} {
+      allow get: if isValidId(albumId) && (existing().is_published == true || isAdmin());
+      allow list: if existing().is_published == true || isBootstrappedAdmin();
+      allow create, update: if isValidId(albumId) && isAdmin() && isValidAlbum(incoming());
+      allow delete: if isValidId(albumId) && isAdmin();
+    }
+
+    // Gallery Media
+    match /gallery_media/{mediaId} {
+      allow get: if isValidId(mediaId) && (existing().is_published == true || isAdmin());
+      allow list: if existing().is_published == true || isBootstrappedAdmin();
+      allow create, update: if isValidId(mediaId) && isAdmin() && isValidMedia(incoming());
+      allow delete: if isValidId(mediaId) && isAdmin();
+    }
+
+    // Blogs
+    match /blogs/{blogId} {
+      allow get: if isValidId(blogId) && (existing().is_published == true || isAdmin());
+      allow list: if existing().is_published == true || isBootstrappedAdmin();
+      allow create, update: if isValidId(blogId) && isAdmin() && isValidBlog(incoming());
+      allow delete: if isValidId(blogId) && isAdmin();
+    }
+
+    // Enquiries (Strict PII isolation; public create only with initial status & server timestamp)
+    match /enquiries/{enquiryId} {
+      allow get: if isValidId(enquiryId) && isAdmin();
+      allow list: if isBootstrappedAdmin();
+      allow create: if isValidId(enquiryId) &&
+        isValidEnquiry(incoming()) &&
+        incoming().status == 'new' &&
+        incoming().created_at == request.time &&
+        incoming().updated_at == request.time &&
+        !('admin_notes' in incoming());
+      allow update: if isValidId(enquiryId) &&
+        isAdmin() &&
+        isValidEnquiry(incoming()) &&
+        incoming().created_at == existing().created_at &&
+        incoming().updated_at == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['status', 'admin_notes', 'updated_at']);
+      allow delete: if isValidId(enquiryId) && isAdmin();
+    }
+
+    // Admission Applications (Strict PII isolation; public create only)
+    match /admissions/{admissionId} {
+      allow get: if isValidId(admissionId) && isAdmin();
+      allow list: if isBootstrappedAdmin();
+      allow create: if isValidId(admissionId) &&
+        isValidAdmission(incoming()) &&
+        incoming().status == 'pending' &&
+        incoming().created_at == request.time &&
+        incoming().updated_at == request.time &&
+        !('admin_notes' in incoming());
+      allow update: if isValidId(admissionId) &&
+        isAdmin() &&
+        isValidAdmission(incoming()) &&
+        incoming().created_at == existing().created_at &&
+        incoming().updated_at == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['status', 'admin_notes', 'updated_at']);
+      allow delete: if isValidId(admissionId) && isAdmin();
+    }
+
+    // Admin Users
+    match /admins/{uid} {
+      allow get: if isValidId(uid) && (isAdmin() || (isVerifiedUser() && request.auth.uid == uid));
+      allow list: if isBootstrappedAdmin();
+      allow create, update: if isValidId(uid) && isBootstrappedAdmin() && isValidAdminUser(incoming());
+      allow delete: if isValidId(uid) && isBootstrappedAdmin() && uid != request.auth.uid;
+    }
+
+    // Admin Activity
+    match /admin_activity/{activityId} {
+      allow get: if isValidId(activityId) && isAdmin();
+      allow list: if isBootstrappedAdmin();
+      allow create: if isValidId(activityId) && isAdmin() && isValidAdminActivity(incoming());
+      allow update, delete: if false;
+    }
+  }
+}

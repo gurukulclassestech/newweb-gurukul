@@ -1,0 +1,177 @@
+@import "tailwindcss";
+
+:root {
+  --background: 0 0% 100%;
+  --foreground: 215 32% 22%;
+  --card: 0 0% 100%;
+  --card-foreground: 215 32% 22%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 215 32% 22%;
+  --primary: 220 67% 22%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 220 43% 97%;
+  --secondary-foreground: 220 67% 22%;
+  --muted: 220 43% 97%;
+  --muted-foreground: 215 16% 45%;
+  --accent: 43 100% 55%;
+  --accent-foreground: 220 67% 22%;
+  --destructive: 0 72% 47%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 217 30% 90%;
+  --input: 217 30% 88%;
+  --ring: 220 67% 22%;
+  --radius: 0.85rem;
+
+  --font-heading: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Instrument Serif", ui-serif, Georgia, serif;
+
+  --brand-navy: 220 67% 22%;
+  --brand-navy-deep: 220 71% 15%;
+  --brand-gold: 43 100% 55%;
+  --brand-blue: 203 94% 42%;
+  --brand-surface: 220 43% 97%;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: var(--font-body);
+  font-size: 1rem;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-heading);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+::selection {
+  background: hsl(var(--brand-gold));
+  color: hsl(var(--brand-navy));
+}
+
+.shell {
+  width: 100%;
+  max-width: 80rem;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1.25rem;
+  padding-right: 1.25rem;
+}
+
+@media (min-width: 640px) {
+  .shell {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .shell {
+    padding-left: 2.5rem;
+    padding-right: 2.5rem;
+  }
+}
+
+.eyebrow {
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: hsl(var(--brand-blue));
+  font-size: 0.6875rem;
+  font-weight: 700;
+}
+
+.surface {
+  border-radius: var(--radius);
+  border: 1px solid hsl(var(--border));
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(18, 43, 92, 0.05), 0 18px 40px -32px rgba(18, 43, 92, 0.35);
+}
+
+.surface-hover {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+}
+
+.surface-hover:hover {
+  border-color: rgba(18, 43, 92, 0.22);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(18, 43, 92, 0.07), 0 24px 50px -30px rgba(18, 43, 92, 0.42);
+}
+
+.display-face {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+  font-weight: 400;
+}
+
+.gold-rule {
+  background: linear-gradient(90deg, transparent, #ffbe1b, transparent);
+  height: 1px;
+}
+
+.prose-site {
+  color: hsl(var(--foreground));
+  line-height: 1.75;
+}
+
+.prose-site h2 {
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+  font-size: 1.5rem;
+  color: hsl(var(--brand-navy));
+}
+
+.prose-site h3 {
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+  font-size: 1.2rem;
+  color: hsl(var(--brand-navy));
+}
+
+.prose-site p {
+  margin-bottom: 1rem;
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.rise-in {
+  animation: 0.45s cubic-bezier(0.16, 1, 0.3, 1) both rise-in;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .rise-in,
+  .surface-hover {
+    animation: none !important;
+    transition: none !important;
+  }
+}
